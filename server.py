@@ -1,47 +1,70 @@
 import socket
-import sys
+import struct
+import time
+import threading
 import json
-from thread import start_new_thread
-#create an INET, STREAMing socket
-serversocket = socket.socket(
-    socket.AF_INET, socket.SOCK_STREAM)
-#bind the socket to a public host,
-# and a well-known port
-serversocket.bind(('localhost', 8880))
-#become a server socket
-serversocket.listen(5)
+import sys
 
-def client_thread(conn):
+user = '[{"username":"andy","value":{"password":"123","status":"offline"}},' \
+        '{"username":"mars","value":{"password":"123","status":"offline"}},' \
+        '{"username":"shuai","value":{"password":"123","status":"offline"}}]'
+json_user = json.loads(user)
 
-    while True:
-        # Wait for a connection
-        try:
-            print >>sys.stderr, 'connection from', client_address
-            # Receive the data in small chunks and retransmit it
-            while True:
-                data = connection.recv(1600)
-                print >>sys.stderr, 'received "%s"' % data
+class ClientHandler(threading.Thread):
+ 
+    def __init__(self, client):
+        threading.Thread.__init__(self)
+        self.client_sock, self.client_addr = client
+
+    def run(self):
+ 
+        global thread_username
+ 
+        while True:
+            data = self.client_sock.recv(1600)
+            if True:
                 if data:
-                    print >>sys.stderr, 'sending data back to the client'
-                    json_data = json.loads(data);
+                    print >> sys.stderr, 'sending data back to the client'
+                    json_data = json.loads(data)
                     if json_data["command"] == "login":
-                       if json_data["value"]["username"] == "awang" and json_data["value"]["password"] == "1234567":
-                           connection.sendall('{"code":"100","message":"login success"}')
-                       else:
-                           connection.sendall('{"code":"99","message":"wrong password"}')
+                        length = len(json_user)
+                        i = 0
+                        while i < length:
+                            if json_data["value"]["username"] == json_user[i]["username"] and json_data["value"]["password"] == json_user[i]["value"]["password"]:
+                                self.client_sock.sendall('{"code":"100","message":"Login success"}')
+                                json_user[i]["value"]["status"] = "online"
+                                thread_username = json_user[i]["username"]
+                            elif json_data["value"]["username"] == json_user[i]["username"] and json_data["value"]["password"] != json_user[i]["value"]["password"]:
+                                self.client_sock.sendall('{"code":"99","message":"Wrong password"}')
+                            i+=1
+                    elif json_data["command"] == "friend list":
+                        print >> sys.stderr, 'get online friend'
+                        length = len(json_user)
+                        i = 0
+                        online_users = ""
+                        while i < length:
+                            if json_user[i]["value"]["status"] == "online" and json_user[i]["username"] != thread_username:
+                                online_users += json_user[i]["username"] + " "
+                            i+=1
+                        if online_users != "":
+                            self.client_sock.sendall('{"code":"100","message":"' + online_users + ' online "}')
+                        else:
+                            self.client_sock.sendall('{"code":"100","message":"no friends online!"}')
+                    elif json_data["command"] == "quit":
+                        length = len(json_user)
+                        i = 0
+                        while i < length:
+                            if json_data["username"] == thread_username:
+                                json_user[i]["value"]["status"] = "offline"
+                            i+=1
                     else:
-                        connection.sendall('{"code":"0","error":"not implemented"}')
-                else:
-                    print >>sys.stderr, 'no more data from', client_address
-                    break
-                
-        finally:
-            # Clean up the connection
-            connection.close()
-
-while True:
-    # blocking call, waits to accept a connection
-    connection, client_address = serversocket.accept()
-    start_new_thread(client_thread, (connection,))
-
-serversocket.close()
+                        self.client_sock.sendall('{"code":"0","error":"not implemented"}')
+ 
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.bind(('', 8880))
+sock.listen(0)
+print "Waiting_for_clients_..."
+ 
+while True: # Serve forever
+    client = sock.accept()
+    ClientHandler(client).start()
