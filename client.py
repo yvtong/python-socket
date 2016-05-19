@@ -10,13 +10,15 @@ sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
 # Connect the socket to the port where the server is listening
 
 def recv_data():
-    "Receive data from other clients connected to server"
     while 1:
         try:
             data = sock.recv(1600)
             try:
                 json_data = json.loads(data)
-                print >> sys.stderr, json_data["message"]
+                if json_data["command"] != "talk":
+                    print >> sys.stderr, json_data["message"]
+                else:
+                    print >> sys.stderr, json_data["message"]
             except:
                 print >> sys.stderr, data
         except:
@@ -52,15 +54,17 @@ while not login:
 thread.start_new_thread(recv_data,())
 
 command = raw_input(">")
-
+taling = False
+talking_to = ""
 while command != "quit":
     command_extends = command.split()
-    print command
     try:
         if command == "friend list":
             message = '{"command":"friend list","username":"' + username + '"}'
             sock.send(message)
             command = raw_input(">")
+
+
         elif "friend add" in command:
             try:
                 message = '{"command":"friend add","add":"'+ command_extends[2] +'","username":"' + username + '"}'
@@ -68,6 +72,8 @@ while command != "quit":
                 command = raw_input(">")
             except ValueError:
                 command = raw_input(">")
+
+
         elif "friend rm" in command:
             try:
                 message = '{"command":"friend rm","rm":"' + command_extends[2] + '","username":"' + username + '"}'
@@ -75,6 +81,8 @@ while command != "quit":
                 command = raw_input(">")
             except ValueError:
                 command = raw_input(">")
+
+
         elif "send" in command:
             try:
                 message = '{"command":"send","who":"' + command_extends[1] + '","message":"'+ command_extends[2] +'","username":"' + username + '"}'
@@ -82,7 +90,21 @@ while command != "quit":
                 command = raw_input(">")
             except ValueError:
                 command = raw_input(">")
+
+        elif "talk" in command:
+            try:
+                message = '{"command":"send","who":"'+ command_extends[1] +'","usename":"'+ username +'","message":"'+ username +',want to talk with you!"}'
+                sock.send(message)
+                talking = True
+                talking_to = command_extends[1]
+                command = raw_input(">")
+            except ValueError:
+                command = raw_input(">")
         elif command == "":
+            command = raw_input(">")
+        elif talking:
+            message ='{"command":"send","who":"' + talking_to + '","usename":"' + username + '","message":"'+ command +'"}'
+            sock.send(message)
             command = raw_input(">")
         else:
             print >> sys.stderr, 'INVALID COMMAND!!!'
